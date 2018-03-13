@@ -1,6 +1,7 @@
 package teleicq.lowlevel;
 
 import com.sun.jna.*;
+import com.sun.jna.ptr.*;
 
 import java.util.*;
 
@@ -9,7 +10,7 @@ public class PurpleEventLoopUiOps extends Structure {
     public interface TimeoutRemove extends Callback { boolean callback(int handle); }
     public interface InputAdd extends Callback { int callback(int fd, int cond, PurpleInputFunction func, Pointer user_data); }
     public interface InputRemove extends Callback { boolean callback(int handle); }
-    public interface InputGetError extends Callback { int callback(int fd, Pointer error); }
+    public interface InputGetError extends Callback { int callback(int fd, IntByReference error); }
     public interface TimeoutAddSeconds extends Callback { int callback(int interval, GSourceFunc function, Pointer data); }
 
 

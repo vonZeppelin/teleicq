@@ -8,6 +8,11 @@ public final class Purple {
         Native.register("purple");
     }
 
+    // blist.h
+    public static native Pointer purple_blist_new();
+    public static native void purple_blist_load();
+    public static native void purple_set_blist(Pointer blist);
+
     // core.h
     public static native String purple_core_get_version();
     public static native boolean purple_core_init(String ui);
@@ -23,6 +28,12 @@ public final class Purple {
     // plugin.h
     public static native GList purple_plugins_get_protocols();
     public static native String purple_plugin_get_name(Pointer plugin);
+
+    // pounce.h
+    public static native boolean purple_pounces_load();
+
+    // prefs.h
+    public static native boolean purple_prefs_load();
 
     // util.h
     public static native void purple_util_set_user_dir(String dir);

@@ -1,0 +1,13 @@
+bot:
+  token:
+
+purple:
+  debug: true
+  id: teleicq
+  userDir: /dev/null
+
+spring:
+  jmx.enabled: false
+  main:
+    banner-mode: 'off'
+    web-environment: false
