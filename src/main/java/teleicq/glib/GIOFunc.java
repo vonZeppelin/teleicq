@@ -1,4 +1,4 @@
-package teleicq.lowlevel;
+package teleicq.glib;
 
 import com.sun.jna.*;
 

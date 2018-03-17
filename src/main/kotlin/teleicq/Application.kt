@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.*
 import org.springframework.boot.*
 import org.springframework.boot.autoconfigure.*
 import org.springframework.context.annotation.*
+import teleicq.purple.*
 
 private val logger = KotlinLogging.logger {}
 

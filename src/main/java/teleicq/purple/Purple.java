@@ -1,6 +1,7 @@
-package teleicq.lowlevel;
+package teleicq.purple;
 
 import com.sun.jna.*;
+import teleicq.glib.*;
 
 public final class Purple {
 

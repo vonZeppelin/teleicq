@@ -1,7 +1,7 @@
-package teleicq
+package teleicq.purple
 
 import com.sun.jna.*
-import teleicq.lowlevel.*
+import teleicq.glib.*
 import java.util.concurrent.*
 
 private const val PURPLE_INPUT_READ = 1 shl 0
