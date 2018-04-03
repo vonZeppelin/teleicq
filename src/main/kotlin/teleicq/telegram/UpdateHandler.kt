@@ -6,30 +6,36 @@ import com.pengrad.telegrambot.request.*
 import mu.*
 import org.springframework.stereotype.*
 
-private val logger = KotlinLogging.logger {}
+interface Chain {
+    val update: Update
 
-interface UpdateHandler {
-    interface Chain {
-        val update: Update
-
-        fun proceed(): BaseRequest<*, *>?
-    }
-
-    fun handle(chain: Chain): BaseRequest<*, *>?
+    fun proceed(): List<BaseRequest<*, *>>
 }
 
+interface UpdateHandler {
+    fun handle(chain: Chain): List<BaseRequest<*, *>>
+}
+
+private val logger = KotlinLogging.logger {}
+
 @Component
-internal class UpdatesProcessor(bot: TelegramBot, updateHandlers: List<UpdateHandler>) {
-    private class ChainImpl(override val update: Update, private val handlers: List<UpdateHandler>) : UpdateHandler.Chain {
-        override fun proceed() = handlers.firstOrNull()?.handle(ChainImpl(update, handlers.drop(1)))
+internal class UpdatesProcessor(bot: TelegramBot, private val handlers: List<UpdateHandler>) {
+    private inner class ChainImpl(override val update: Update, private val idx: Int = 0) : Chain {
+        override fun proceed(): List<BaseRequest<*, *>> {
+            val handler = handlers.getOrNull(idx) ?: return emptyList()
+            return handler.handle(ChainImpl(update, idx + 1))
+        }
     }
 
     init {
         bot.setUpdatesListener {
             it.fold(UpdatesListener.CONFIRMED_UPDATES_ALL) { prevId, update ->
                 try {
-                    ChainImpl(update, updateHandlers).proceed()?.let {
-                        bot.execute(it)
+                    ChainImpl(update).proceed().forEach {
+                        val response = bot.execute(it)
+                        logger.debug {
+                            "Sending request $response"
+                        }
                     }
                 } catch (e: Exception) {
                     logger.warn(e) {
