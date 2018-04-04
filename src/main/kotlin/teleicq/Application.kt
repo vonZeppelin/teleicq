@@ -10,18 +10,18 @@ import org.springframework.boot.autoconfigure.*
 import org.springframework.context.annotation.*
 import teleicq.purple.*
 
+const val APP_NAME = "teleicq"
+
 private val logger = KotlinLogging.logger {}
 
 @SpringBootApplication
 class Application {
     @Bean
-    fun purpleFacade(@Value("\${purple.id}") id: String,
-                     @Value("\${purple.userDir}") userDir: String,
-                     @Value("\${purple.debug}") debug: Boolean): PurpleFacade {
+    fun purpleFacade(@Value("\${purple.userDir}") userDir: String): PurpleFacade {
         logger.info {
-            "Creating PurpleFacade with id=$id and user directory=$userDir"
+            "Creating PurpleFacade with id=$APP_NAME and user directory=$userDir"
         }
-        return PurpleFacade(id, userDir, debug)
+        return PurpleFacade(APP_NAME, userDir)
     }
 
     @Bean
@@ -47,7 +47,7 @@ class Application {
 
             isDdlGenerate = true
             isDdlRun = true
-            name = "teleicq"
+            name = APP_NAME
         }
         return EbeanServerFactory.create(serverConfig)
     }

@@ -2,8 +2,6 @@ bot:
   token:
 
 purple:
-  debug: true
-  id: teleicq
   userDir: /dev/null
 
 spring:

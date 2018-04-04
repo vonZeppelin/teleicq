@@ -22,6 +22,7 @@ public final class Purple {
 
     // debug.h
     public static native void purple_debug_set_enabled(boolean enabled);
+    public static native void purple_debug_set_ui_ops(PurpleDebugUiOps ops);
 
     // eventloop.h
     public static native void purple_eventloop_set_ui_ops(PurpleEventLoopUiOps ops);

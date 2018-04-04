@@ -1,6 +1,7 @@
 package teleicq.purple
 
 import com.sun.jna.*
+import mu.*
 import teleicq.glib.*
 import java.util.concurrent.*
 
@@ -9,7 +10,9 @@ private const val PURPLE_INPUT_WRITE = 1 shl 1
 private const val PURPLE_GLIB_READ_COND = 1 or 8 or 16
 private const val PURPLE_GLIB_WRITE_COND = 4 or 8 or 16 or 32
 
-class PurpleFacade(id: String, userDir: String, debug: Boolean) : AutoCloseable {
+private val logger = KotlinLogging.logger {}
+
+class PurpleFacade(id: String, userDir: String) : AutoCloseable {
     // TODO Fix ioClosures workaround?
     private val ioClosures = ConcurrentHashMap<Pointer, PurpleGLibIOClosure>()
     private val loop = GLib.g_main_loop_new(Pointer.NULL, false)
@@ -19,10 +22,12 @@ class PurpleFacade(id: String, userDir: String, debug: Boolean) : AutoCloseable 
         if (closure != null) {
             var purpleCond = 0
 
-            if (condition and PURPLE_GLIB_READ_COND != 0)
+            if (condition and PURPLE_GLIB_READ_COND != 0) {
                 purpleCond = purpleCond or PURPLE_INPUT_READ
-            if (condition and PURPLE_GLIB_WRITE_COND != 0)
+            }
+            if (condition and PURPLE_GLIB_WRITE_COND != 0) {
                 purpleCond = purpleCond or PURPLE_INPUT_WRITE
+            }
 
             closure.function.callback(
                 closure.data, GLib.g_io_channel_unix_get_fd(source), purpleCond
@@ -32,6 +37,22 @@ class PurpleFacade(id: String, userDir: String, debug: Boolean) : AutoCloseable 
     }
     private val purpleGLibIODestroy = GDestroyNotify { data ->
         ioClosures -= data
+    }
+    private val debugOps = PurpleDebugUiOps().apply {
+        val logger = KotlinLogging.logger("Purple")
+        val loggingFns = listOf<Pair<() -> Boolean, (String) -> Unit>>(
+            Pair(logger::isDebugEnabled, logger::debug),
+            Pair(logger::isInfoEnabled, logger::info),
+            Pair(logger::isWarnEnabled, logger::warn),
+            Pair(logger::isErrorEnabled, logger::error),
+            Pair(logger::isErrorEnabled, logger::error)
+        )
+        is_enabled = PurpleDebugUiOps.IsEnabled { level, _ ->
+            loggingFns[level - 1].first()
+        }
+        print = PurpleDebugUiOps.Print { level, _, arg_s ->
+            loggingFns[level - 1].second(arg_s.trim())
+        }
     }
     private val eventLoopOps = PurpleEventLoopUiOps().apply {
         timeout_add = PurpleEventLoopUiOps.TimeoutAdd { interval, function, data ->
@@ -47,10 +68,12 @@ class PurpleFacade(id: String, userDir: String, debug: Boolean) : AutoCloseable 
             ioClosures[closure.pointer] = closure
 
             var cond = 0
-            if (condition and PURPLE_INPUT_READ != 0)
+            if (condition and PURPLE_INPUT_READ != 0) {
                 cond = cond or PURPLE_GLIB_READ_COND
-            if (condition and PURPLE_INPUT_WRITE != 0)
+            }
+            if (condition and PURPLE_INPUT_WRITE != 0) {
                 cond = cond or PURPLE_GLIB_WRITE_COND
+            }
 
             val channel = GLib.g_io_channel_unix_new(fd)
             closure.result = GLib.g_io_add_watch_full(
@@ -79,8 +102,12 @@ class PurpleFacade(id: String, userDir: String, debug: Boolean) : AutoCloseable 
         }
 
     init {
+        logger.info {
+            "Initializing libpurple v${Purple.purple_core_get_version()}"
+        }
+
         Purple.purple_util_set_user_dir(userDir)
-        Purple.purple_debug_set_enabled(debug)
+        Purple.purple_debug_set_ui_ops(debugOps)
 
         Purple.purple_core_set_ui_ops(coreOps)
         Purple.purple_eventloop_set_ui_ops(eventLoopOps)
