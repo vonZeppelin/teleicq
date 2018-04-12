@@ -3,7 +3,6 @@ package teleicq.purple
 import com.sun.jna.*
 import mu.*
 import teleicq.glib.*
-import java.util.concurrent.*
 
 private const val PURPLE_INPUT_READ = 1 shl 0
 private const val PURPLE_INPUT_WRITE = 1 shl 1
@@ -13,30 +12,26 @@ private const val PURPLE_GLIB_WRITE_COND = 4 or 8 or 16 or 32
 private val logger = KotlinLogging.logger {}
 
 class PurpleFacade(id: String, userDir: String) : AutoCloseable {
-    // TODO Fix ioClosures workaround?
-    private val ioClosures = ConcurrentHashMap<Pointer, PurpleGLibIOClosure>()
     private val loop = GLib.g_main_loop_new(Pointer.NULL, false)
     private val coreOps = PurpleCoreUiOps()
     private val purpleGLibIOInvoke = GIOFunc { source, condition, data ->
-        val closure = ioClosures[data]
-        if (closure != null) {
-            var purpleCond = 0
+        val closure = PurpleGLibIOClosure(data).apply { read() }
+        var purpleCond = 0
 
-            if (condition and PURPLE_GLIB_READ_COND != 0) {
-                purpleCond = purpleCond or PURPLE_INPUT_READ
-            }
-            if (condition and PURPLE_GLIB_WRITE_COND != 0) {
-                purpleCond = purpleCond or PURPLE_INPUT_WRITE
-            }
+        if (condition and PURPLE_GLIB_READ_COND != 0) {
+            purpleCond = purpleCond or PURPLE_INPUT_READ
+        }
+        if (condition and PURPLE_GLIB_WRITE_COND != 0) {
+            purpleCond = purpleCond or PURPLE_INPUT_WRITE
+        }
 
-            closure.function.callback(
-                closure.data, GLib.g_io_channel_unix_get_fd(source), purpleCond
-            )
-            true
-        } else false
+        closure.function.callback(
+            closure.data, GLib.g_io_channel_unix_get_fd(source), purpleCond
+        )
+        true
     }
     private val purpleGLibIODestroy = GDestroyNotify { data ->
-        ioClosures -= data
+        Native.free(Pointer.nativeValue(data))
     }
     private val debugOps = PurpleDebugUiOps().apply {
         val logger = KotlinLogging.logger("Purple")
@@ -62,10 +57,13 @@ class PurpleFacade(id: String, userDir: String) : AutoCloseable {
             GLib.g_source_remove(handle)
         }
         input_add = PurpleEventLoopUiOps.InputAdd { fd, condition, func, user_data ->
-            val closure = PurpleGLibIOClosure()
-            closure.function = func
-            closure.data = user_data
-            ioClosures[closure.pointer] = closure
+            val closureSize = Native.getNativeSize(PurpleGLibIOClosure.ByValue::class.java)
+            val closurePtr = Pointer(Native.malloc(closureSize.toLong()))
+            val closure = PurpleGLibIOClosure(closurePtr).apply {
+                function = func
+                data = user_data
+                write()
+            }
 
             var cond = 0
             if (condition and PURPLE_INPUT_READ != 0) {
