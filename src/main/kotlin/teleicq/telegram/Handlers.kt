@@ -3,29 +3,37 @@ package teleicq.telegram
 import com.pengrad.telegrambot.model.*
 import com.pengrad.telegrambot.model.request.*
 import com.pengrad.telegrambot.request.*
-import io.ebean.*
 import org.springframework.core.annotation.*
 import org.springframework.stereotype.*
+import org.springframework.transaction.annotation.*
 import teleicq.db.*
 
-private const val CONFIRM_STOP = "stopYes"
-private const val CANCEL_STOP = "stopNo"
+private const val SHRUG_EMOJI = "\uD83E\uDD37"
+private const val WINKING_FACE_EMOJI = "\uD83D\uDE09"
+private const val WORRIED_FACE_EMOJI = "\uD83D\uDE1F"
+
+private const val CANCEL_STOP_CALLBACK = "stopNo"
+private const val CONFIRM_STOP_CALLBACK = "stopYes"
 
 @Component @Order(1)
-internal class CallbackQueryHandler(private val db: EbeanServer) : UpdateHandler {
+internal class CallbackQueryHandler(private val userRepo: TelegramUserRepository) : UpdateHandler {
+    @Transactional
     override fun handle(chain: Chain): List<BaseRequest<*, *>> {
         val query = chain.update.callbackQuery() ?: return chain.proceed()
         val msg = query.message()
 
         return when (query.data()) {
-            CONFIRM_STOP -> {
-                db.find(TelegramUser::class.java, query.from().id())?.let(db::delete)
+            CONFIRM_STOP_CALLBACK -> {
+                val userId = query.from().id()
+                if (userRepo.existsById(userId)) {
+                    userRepo.deleteById(userId)
+                }
                 listOf(
                     AnswerCallbackQuery(query.id()).text("Good bye!"),
                     EditMessageReplyMarkup(msg.chat().id(), msg.messageId())
                 )
             }
-            CANCEL_STOP -> listOf(
+            CANCEL_STOP_CALLBACK -> listOf(
                 AnswerCallbackQuery(query.id()),
                 EditMessageReplyMarkup(msg.chat().id(), msg.messageId())
             )
@@ -41,7 +49,7 @@ internal object DefaultMessageHandler : UpdateHandler {
         val requests = chain.proceed()
         if (requests.isEmpty()) {
             return listOf(
-                SendMessage(msg.chat().id(), "I didn't understand you \uD83E\uDD37")
+                SendMessage(msg.chat().id(), "I didn't understand you $SHRUG_EMOJI")
             )
         }
         return requests
@@ -49,7 +57,8 @@ internal object DefaultMessageHandler : UpdateHandler {
 }
 
 @Component @Order(3)
-internal class BotCommandHandler(private val db: EbeanServer) : UpdateHandler {
+internal class BotCommandHandler(private val userRepo: TelegramUserRepository) : UpdateHandler {
+    @Transactional
     override fun handle(chain: Chain): List<BaseRequest<*, *>> {
         val msg = chain.update.message()
         val chat = msg.chat().id()
@@ -59,40 +68,33 @@ internal class BotCommandHandler(private val db: EbeanServer) : UpdateHandler {
                          ?.run { msg.text().substring(offset() + 1, offset() + length()) }
 
         return when (command) {
+            null -> chain.proceed()
             "start" -> {
                 with(msg.from()) {
-                    val user = db.find(TelegramUser::class.java, id())
-                    if (user == null) {
-                        db.save(
-                            TelegramUser(id().toLong(), firstName(), lastName(), username())
-                        )
-                    } else {
-                        user.firstName = firstName()
-                        user.lastName = lastName()
-                        user.userName = username()
-                        db.update(user)
-                    }
+                    val user = userRepo.findById(id()).orElseGet { TelegramUser(id()) }
+                    user.firstName = firstName()
+                    user.lastName = lastName()
+                    user.userName = username()
+                    userRepo.save(user)
                 }
                 listOf(SendMessage(chat, "Hi, I'm TeleICQ bot!"))
             }
             "stop" -> {
-                val user = db.find(TelegramUser::class.java, msg.from().id())
-                if (user == null) {
-                    listOf(SendMessage(chat, "We haven't even started! \uD83D\uDE09"))
-                } else {
+                if (userRepo.existsById(msg.from().id())) {
                     val keyboard = InlineKeyboardMarkup(
                         arrayOf(
-                            InlineKeyboardButton("Yes").callbackData(CONFIRM_STOP),
-                            InlineKeyboardButton("No").callbackData(CANCEL_STOP)
+                            InlineKeyboardButton("Yes").callbackData(CONFIRM_STOP_CALLBACK),
+                            InlineKeyboardButton("No").callbackData(CANCEL_STOP_CALLBACK)
                         )
                     )
-                    listOf(SendMessage(chat, "Are you sure? \uD83D\uDE1F").replyMarkup(keyboard))
+                    listOf(SendMessage(chat, "Are you sure $WORRIED_FACE_EMOJI?").replyMarkup(keyboard))
+                } else {
+                    listOf(SendMessage(chat, "We haven't even started $WINKING_FACE_EMOJI!"))
                 }
             }
             "help" -> listOf(SendMessage(chat, "TODO help"))
             "settings" -> listOf(SendMessage(chat, "TODO settings"))
             "register" -> listOf(SendMessage(chat, "TODO register"))
-            null -> chain.proceed()
             else -> listOf(SendMessage(chat, "Unknown command"))
         }
     }

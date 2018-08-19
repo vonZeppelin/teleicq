@@ -119,7 +119,9 @@ class PurpleFacade(id: String, userDir: String) : AutoCloseable {
 
         Purple.purple_pounces_load()
 
-        Thread({ GLib.g_main_loop_run(loop) }).start()
+        kotlin.concurrent.thread {
+            GLib.g_main_loop_run(loop)
+        }
     }
 
     override fun close() {

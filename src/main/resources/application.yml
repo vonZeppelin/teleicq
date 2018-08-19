@@ -5,7 +5,13 @@ purple:
   userDir: /dev/null
 
 spring:
+  jpa:
+    hibernate.ddl-auto: update
+    properties.hibernate:
+      jdbc.lob.non_contextual_creation: true
+
   jmx.enabled: false
+
   main:
     banner-mode: 'off'
-    web-environment: false
+    web-application-type: none
